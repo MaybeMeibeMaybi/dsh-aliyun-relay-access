@@ -1,0 +1,31 @@
+{
+  "name": "dsh-aliyun-relay-access",
+  "version": "1.0.0",
+  "description": "Reach the DeepSeek Harness (dsh) web GUI from anywhere through a cheap cloud relay. frp reverse tunnel plus a loopback entry proxy: the PC dials out, so CGNAT and inbound firewalls do not matter.",
+  "author": "Jim Chen",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaybeMeibeMaybi/dsh-aliyun-relay-access.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MaybeMeibeMaybi/dsh-aliyun-relay-access/issues"
+  },
+  "homepage": "https://github.com/MaybeMeibeMaybi/dsh-aliyun-relay-access#readme",
+  "type": "module",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "frp",
+    "reverse-tunnel",
+    "nat-traversal",
+    "cgnat",
+    "remote-access",
+    "aliyun",
+    "ecs",
+    "self-hosted"
+  ],
+  "scripts": {
+    "check": "echo \"Server-side: src/server/*.sh ; client template: src/client/frpc.toml.template\""
+  }
+}

@@ -1,0 +1,42 @@
+# ============================================================================
+# frpc.toml.template — 电脑侧客户端配置模板
+#
+# 使用方法：复制为 frpc.toml，替换两个占位符（<RELAY_HOST> 与 <FRP_TOKEN>）。
+#
+# 拓扑：
+#   手机 ──► <RELAY_HOST>:18080 ──► [frps] ──► 反向隧道 ──► 电脑 127.0.0.1:18080
+#                                                          (dsh-entry-proxy.mjs)
+#                                                                 │ 转发
+#                                                                 ▼
+#                                                        127.0.0.1:3080 (dsh web)
+#
+# 为什么本地也要监听 18080：frp 的 remotePort/localPort 是**端口到端口**映射，
+# 服务端把流量交给电脑的 localPort，因此本地必须有进程监听同一端口。
+# 本项目的做法是让入口代理绑 127.0.0.1:18080（只允许本机 frpc 送入，永不直接暴露）。
+#
+# token 从哪来：服务器上执行 relay-server-setup.sh 后打印；也可在服务器上
+#   cat /opt/frp/frp-token
+# ============================================================================
+
+serverAddr = "<RELAY_HOST>"
+serverPort = 7000
+auth.method = "token"
+auth.token = "<FRP_TOKEN>"
+
+log.to = "frpc.log"
+log.level = "info"
+log.maxDays = 3
+
+# 断线自动重连：适配"电脑在随机网络间切换"的场景。
+# 注意 loginFailExit = false 表示登录失败也保持重试，不要改成 true。
+loginFailExit = false
+
+[[proxies]]
+name = "dsh-web"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 18080
+remotePort = 18080
+
+transport.useEncryption = true
+transport.useCompression = true

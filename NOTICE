@@ -1,0 +1,32 @@
+# NOTICE
+
+## Authorship
+
+All files in this repository (the server-side deployment script, the console-paste
+variant, the frpc configuration template, and the SSH hardening script) were written for
+this project by **Jim Chen** and are licensed under the MIT License — see [`LICENSE`](LICENSE).
+
+## Third-party software used at runtime (not vendored)
+
+| Software | Role | License |
+|---|---|---|
+| [frp](https://github.com/fatedier/frp) by fatedier | the reverse tunnel itself (`frps` on the server, `frpc` on the PC) | Apache-2.0 |
+| [DeepSeek Harness (dsh)](https://github.com/deepseek-ai) | the application being exposed | see upstream |
+| OpenSSH (ships with Windows 10+) | key-based login and hardening | BSD-style |
+
+`frpc.exe` is deliberately **not** committed to this repository: download it from the
+official frp release page so you can verify its integrity. `docs/DEPLOY.md` says where.
+
+## Related projects of ours
+
+- [`dsh-lan-remote-access`](https://github.com/MaybeMeibeMaybi/dsh-lan-remote-access) —
+  the LAN entry proxy this relay depends on.
+- [`dsh-harmonyos-hiboard`](https://github.com/MaybeMeibeMaybi/dsh-harmonyos-hiboard) —
+  push dsh results to Huawei HarmonyOS assistant-today cards.
+
+## Documented lessons
+
+The Windows script-encoding rules repeated in `docs/DEPLOY.md` (`.cmd`/`.bat` must be
+ASCII-only because cmd.exe decodes them with the system ANSI code page; a `.ps1` containing
+non-ASCII must carry a UTF-8 BOM because PowerShell 5.1 otherwise decodes it as ANSI) were
+learned the hard way and are recorded here so nobody has to rediscover them.
