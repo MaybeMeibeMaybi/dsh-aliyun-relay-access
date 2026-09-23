@@ -3,12 +3,36 @@
 **Reach the DeepSeek Harness (dsh) web GUI from anywhere through a cheap cloud relay**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![frp](https://img.shields.io/badge/frp-reverse%20tunnel-00ADD8)](#)
+[![SSH tunnel](https://img.shields.io/badge/SSH-reverse%20tunnel-4D4D4D?logo=openssh&logoColor=white)](#)
+[![HTTPS gateway](https://img.shields.io/badge/HTTPS-auth%20gateway-3B82F6?logo=letsencrypt&logoColor=white)](#)
 [![Aliyun](https://img.shields.io/badge/Aliyun-ECS-FF6A00?logo=alibabacloud&logoColor=white)](#)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%2B%20Linux-0078D4)](#)
 
 **电脑在任何网络下**（家庭宽带、5G 热点、外地 WiFi、校园网、运营商 CGNAT 大内网），
 手机都能通过一个固定的公网地址访问这台电脑上的 dsh GUI。
+
+> **本项目提供三种由弱到强的接入方式**，可以按需选择或叠加：
+>
+> | 方式 | 手机要求 | 加密 | 认证 | 公网端口 |
+> |---|---|---|---|---|
+> | ① frp 反向隧道（起步方案） | 浏览器 | 隧道段加密 | dsh token | 7000 + 18080 |
+> | ② **SSH 反向隧道**（推荐） | SSH 客户端 | **SSH** | 密钥 | **仅 22** |
+> | ③ **HTTPS 认证网关** | **仅浏览器** | **TLS** | **密码** | 22 + 18443 |
+>
+> ③ 是**原生鸿蒙（无 SSH 客户端）唯一可行**的方案；
+> 配合 `dsh-token-broadcast` 插件自动上报 token，用户只需输一次密码。
+> 演进过程与实测结论见 [`docs/UPDATES-2026-09-23.md`](docs/UPDATES-2026-09-23.md)。
+
+---
+
+## 零、三种方式怎么选
+
+- **只想最快跑通** → 用 ①（`docs/DEPLOY.md` 的 frp 主线）
+- **追求最小暴露面 + 最安全** → 用 ②（`src/tunnel/`，公网只剩 22 端口）
+- **手机是原生鸿蒙 / 不想装任何客户端** → 用 ③（`src/gateway/`）
+
+②③ 都已在真实环境验证通过：②的公网端口收敛到仅 SSH；③的浏览器流程
+（登录 → 直接进 GUI → WebSocket 101）见 `tests/`。
 
 ---
 
@@ -20,6 +44,8 @@
 | **反向隧道中继（本项目）** | 只需**服务器**有公网 IP | ✅ 电脑**主动连出**到服务器，对 CGNAT 与入站封锁**免疫** |
 
 关键点：连接方向是「电脑 → 服务器」，所以**电脑侧不需要任何入站端口**。
+
+### 方式①：frp（起步方案）
 
 ```
 手机 ──► <服务器公网IP>:18080 ──► [frps] ──► 反向隧道 ──► 电脑 frpc
@@ -67,18 +93,59 @@
 ├── LICENSE
 ├── package.json
 ├── docs/
-│   ├── DEPLOY.md            从零部署：8 步 + 排错表
-│   ├── ARCHITECTURE.md      链路细节、七个设计决策、分层验证法
-│   ├── SECURITY.md          三道防线、凭据清单、SSH 加固、自查清单
-│   └── MIGRATION.md         换服务器四步 / 换电脑三步
-└── src/
-    ├── server/
-    │   ├── relay-server-setup.sh      服务器端一键部署 frps（自包含）
-    │   └── aliyun-paste-command.sh    适合直接粘贴进网页控制台的版本
-    └── client/
-        ├── frpc.toml.template         电脑端配置模板（两处占位符）
-        └── ssh-key-setup.ps1          SSH 密钥登录 + 加固（纯 ASCII）
+│   ├── DEPLOY.md                   从零部署：8 步 + 排错表
+│   ├── ARCHITECTURE.md             链路细节、七个设计决策、分层验证法
+│   ├── SECURITY.md                 三道防线、凭据清单、SSH 加固、自查清单
+│   ├── MIGRATION.md                换服务器四步 / 换电脑三步
+│   └── UPDATES-2026-09-23.md       本次演进汇总（SSH 隧道 + HTTPS 网关 + 实测结论）
+├── src/
+│   ├── server/
+│   │   ├── relay-server-setup.sh   服务器端一键部署 frps（自包含）
+│   │   └── aliyun-paste-command.sh 适合直接粘贴进网页控制台的版本
+│   ├── client/
+│   │   ├── frpc.toml.template      电脑端配置模板（两处占位符）
+│   │   └── ssh-key-setup.ps1       SSH 密钥登录 + 加固（纯 ASCII）
+│   ├── tunnel/                     ★ 方式②：SSH 反向隧道（取代 frp）
+│   │   ├── Start-SshTunnel.ps1     隧道客户端 + 掉线自愈（纯 ASCII）
+│   │   ├── Switch-ToSshTunnel.ps1  从 frp 一次性切换过来
+│   │   └── relay-ssh-hardening.sh  服务器加固 + 退役 frps
+│   └── gateway/                    ★ 方式③：HTTPS 认证网关
+│       ├── dsh-auth-gateway.mjs          网关本体（TLS + 密码 + 会话 + WS 隧道）
+│       ├── install-auth-gateway.sh       一键部署 + 生成注册密钥 + systemd
+│       ├── issue-ca-and-server-cert.sh   建 10 年 CA 并签发服务器证书
+│       └── install-node-official.sh      apt 只有 Node 12，改用官方二进制
+└── tests/
+    ├── browser-flow-test.mjs       严格模拟浏览器 cookie 流转
+    └── test-skip-token.mjs         验证"只输密码即可进入 GUI"
 ```
+
+### 方式②：SSH 反向隧道（取代 frp）
+
+```
+手机 ──ssh -L 18080:127.0.0.1:18080──► 服务器:22 ──隧道──► 电脑:18080 ──► dsh:3080
+```
+
+- 电脑执行 `ssh -N -R 18080:127.0.0.1:18080 dsh-aliyun`
+- 服务器侧只得到 **127.0.0.1:18080**（不指定 bind 地址时 sshd 默认绑环回，且 `GatewayPorts no`）
+- **公网只剩 22 一个端口**；7000 与 18080 都可以从安全组删掉
+- 掉线自愈：`Start-SshTunnel.ps1` 内置监督循环（PC 换网必掉线）
+
+### 方式③：HTTPS 认证网关（手机只需浏览器）
+
+```
+手机 ──https(18443)──► 服务器网关(密码认证 + TLS) ──► 127.0.0.1:18080 ──► dsh:3080
+                                                        （方式②建立的隧道）
+```
+
+网关的关键设计（都在 `docs/UPDATES-2026-09-23.md` 里详述）：
+
+1. **网关持有 dsh 会话，浏览器只持有网关会话**。
+   dsh 的会话 cookie 按 authority 命名，网关改写 `Host` 后若原样透传 cookie，
+   浏览器会存在错误域名下、后续请求带不回去（表现为 `authentication required`）。
+2. 转发时**去掉 `Origin`**、把 `Host` 改写为 `127.0.0.1:18080` → 穿过 dsh 信任围栏。
+3. **隧道 WebSocket 升级**，否则会话列表为空、一直"自动重连中"。
+4. **token 自动上报**：电脑上的 `dsh-token-broadcast` 插件用注册密钥把 token
+   上报到 `/__gw_register`，于是浏览器**只输密码**即可进入，无需粘贴 token。
 
 ---
 
