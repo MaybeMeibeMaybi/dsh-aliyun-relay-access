@@ -14,7 +14,7 @@
 #
 # 用法：
 #   sudo bash issue-ca-and-server-cert.sh [额外SAN...]
-#   例：sudo bash issue-ca-and-server-cert.sh 203.0.113.10 203.0.113.10.sslip.io
+#   例：sudo bash issue-ca-and-server-cert.sh 203.0.113.10 example.sslip.io
 # ============================================================================
 set -euo pipefail
 
