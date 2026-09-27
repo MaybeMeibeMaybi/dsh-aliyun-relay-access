@@ -416,8 +416,24 @@ function json(res, status, obj) {
 }
 
 // ------------------------------------------------------------------ 服务
+/**
+ * 这个网关监听在公网端口上，必须**假设客户端会随时把连接掐掉**：
+ *  2026-09-27 真实事故——手机在证书警告页点了"取消"，浏览器直接 RST 掉 TLS 握手，
+ *  Node 在 TLSSocket 上抛出未处理的 'error'（read ECONNRESET），进程当场退出，
+ *  systemd 反复重拉（restart counter 一路涨到 15），用户看到的就是"证书不可信 + 连不上"。
+ * 公网端口还会被扫描器持续握手/断开，同样会触发。
+ *
+ * 三道防线：
+ *   1. tlsClientError / clientError：只记录，不抛出
+ *   2. 每个请求的 socket 都挂 error 处理器（握手后被 RST 也走这里）
+ *   3. 顶层 uncaughtException / unhandledRejection 兜底：宁可继续服务，也不要整站挂掉
+ */
 const server = https.createServer(TLS_OPTIONS, (req, res) => {
 	const ip = req.socket.remoteAddress ?? "unknown";
+	// 2) 连接级错误不要让进程崩：客户端中途关页面、切网、被 NAT 超时都会触发。
+	req.on("error", () => {});
+	res.on("error", () => {});
+	req.socket?.on("error", () => {});
 	const sessionId = verifySession(cookieValue(req.headers.cookie, COOKIE_NAME))?.sid;
 	const session = getSession(sessionId);
 	const url = new URL(req.url ?? "/", "https://gateway.invalid");
@@ -619,6 +635,30 @@ server.on("upgrade", (req, clientSocket, head) => {
 	});
 	upstream.on("error", () => clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n"));
 	upstream.end();
+});
+
+// 1) TLS 握手阶段的客户端错误（证书警告页点取消、扫描器探测、协议不匹配）：
+//    只计数/记录，绝不抛出——这一条就是 2026-09-27 那次"网关反复崩溃"的修复。
+let tlsClientErrors = 0;
+server.on("tlsClientError", (error) => {
+	tlsClientErrors += 1;
+	// 只在头几次打印，避免被扫描器刷爆日志
+	if (tlsClientErrors <= 5) console.error(`[gateway] TLS 握手被客户端中断（已忽略，累计 ${tlsClientErrors}）：${error?.code ?? error?.message ?? "unknown"}`);
+});
+server.on("clientError", (_error, socket) => {
+	try {
+		socket.destroy();
+	} catch {
+		/* 忽略 */
+	}
+});
+
+// 3) 顶层兜底：公网服务"活着"比"干净退出"更重要（systemd 重启会丢内存里的会话）。
+process.on("uncaughtException", (error) => {
+	console.error(`[gateway] uncaughtException（已兜住，进程继续）：${error?.message ?? String(error)}`);
+});
+process.on("unhandledRejection", (reason) => {
+	console.error(`[gateway] unhandledRejection（已兜住）：${reason?.message ?? String(reason)}`);
 });
 
 server.on("error", (error) => {
