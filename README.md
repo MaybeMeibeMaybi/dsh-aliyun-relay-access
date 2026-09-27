@@ -97,7 +97,10 @@
 │   ├── ARCHITECTURE.md             链路细节、七个设计决策、分层验证法
 │   ├── SECURITY.md                 三道防线、凭据清单、SSH 加固、自查清单
 │   ├── MIGRATION.md                换服务器四步 / 换电脑三步
+│   ├── INCIDENT-2026-09-27-gateway-token-not-registered.md  ★ 网关漏注册 token 复盘
 │   └── UPDATES-2026-09-23.md       本次演进汇总（SSH 隧道 + HTTPS 网关 + 实测结论）
+├── tools/
+│   └── verify-gateway.mjs          ★ 一条命令查清"远程为什么进不去"（--register 可补注册）
 ├── src/
 │   ├── server/
 │   │   ├── relay-server-setup.sh   服务器端一键部署 frps（自包含）
@@ -108,7 +111,8 @@
 │   ├── tunnel/                     ★ 方式②：SSH 反向隧道（取代 frp）
 │   │   ├── Start-SshTunnel.ps1     隧道客户端 + 掉线自愈（纯 ASCII）
 │   │   ├── Switch-ToSshTunnel.ps1  从 frp 一次性切换过来
-│   │   └── relay-ssh-hardening.sh  服务器加固 + 退役 frps
+│   │   ├── relay-ssh-hardening.sh  服务器加固 + 退役 frps
+│   │   └── dsh-entry-proxy.mjs     ★ 隧道入口的本地代理（局域网与中继共用一份）
 │   └── gateway/                    ★ 方式③：HTTPS 认证网关
 │       ├── dsh-auth-gateway.mjs          网关本体（TLS + 密码 + 会话 + WS 隧道）
 │       ├── install-auth-gateway.sh       一键部署 + 生成注册密钥 + systemd
@@ -203,7 +207,31 @@ dsh 的 `/api` 会比较 `Host` 与 `Origin`，并要求 authority 属于"环回
 
 ---
 
-## 七、安全（详见 [`docs/SECURITY.md`](docs/SECURITY.md)）
+## 七、远程进不去？先跑体检，别急着重启
+
+> 2026-09-27 真实事故复盘见
+> [`docs/INCIDENT-2026-09-27-gateway-token-not-registered.md`](docs/INCIDENT-2026-09-27-gateway-token-not-registered.md)。
+
+两个最容易误判的失败模式：
+
+| 手机/浏览器上看到 | 真实原因 | 怎么办 |
+|---|---|---|
+| **"网关尚未收到本次启动的 token"** | 网关**只在内存里存 token**，dsh 重启后必须重新注册（由电脑上的 `token-broadcast` 插件完成）。注册漏一次，粘贴什么 token 都无效 | 补一次注册即可，**不用重启 dsh** |
+| 页面能开、但一直"**自动重连中**"、会话列表空 | `/api/remote.mux` 的 **WebSocket 没建起来**。入口代理是长连接反代，dsh 重启后它仍指向旧实例（旧代理会回 `502`） | **重启入口代理**（新版代理已自动跟随地址） |
+
+体检工具（源码里不含任何真实地址，配置走环境变量 `DSH_GW_HOST` / `DSH_GW_PORT` /
+`DSH_GW_KEY_FILE` / `DSH_ENTRY_PORT`）：
+
+```bash
+node tools/verify-gateway.mjs              # 只体检：dsh 在不在、网关可达否、token 注册否、局域网入口通否
+node tools/verify-gateway.mjs --register    # 体检 + token 缺失时补注册
+```
+
+它把"进不去"拆成可判定的四段，直接告诉你是哪一段断了。
+
+---
+
+## 八、安全（详见 [`docs/SECURITY.md`](docs/SECURITY.md)）
 
 三道防线，缺一不可：
 
