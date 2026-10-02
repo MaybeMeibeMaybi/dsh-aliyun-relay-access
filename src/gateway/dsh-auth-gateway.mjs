@@ -263,7 +263,7 @@ function manualTokenPage(msg) {
 		`<h1>需要一次 dsh token</h1>
      <p>${msg}</p>
      <p>在电脑上打开 <code>%USERPROFILE%\\.dsh\\lan\\web-state.json</code>，
-        复制其中的 <code>token</code>；或直接看负一屏那张「dsh 本次启动 token」卡片。</p>
+        复制其中的 <code>token</code>；或直接看负一屏那张「DeepSeek Harness本次启动地址」卡片。</p>
      ${MANUAL_TOKEN_FORM}`
 	);
 }

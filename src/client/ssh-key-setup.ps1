@@ -50,7 +50,7 @@ Say "[+] key login works."
 # ------------------------------------------------------------- client config
 # Add a ~/.ssh/config entry so plain `ssh dsh-relay` works without -i.
 # NOTE: the IdentityFile value is QUOTED because a Windows profile path often
-# contains a space ("Jim Chen"); unquoted, ssh reports
+# contains a space (the Windows profile folder usually does); unquoted, ssh reports
 #   "keyword identityfile extra arguments at end of line"
 # and refuses to start at all.
 $cfgPath = Join-Path $env:USERPROFILE '.ssh\config'
